@@ -975,10 +975,12 @@ static void imx900_adjust_hmax_register(struct imx900 *imx900)
 		else
 			imx900->hmax = 0xD8;
 		break;
-	case IMX900_MODE_2064x1552_8BPP:
-	case IMX900_MODE_ROI_1920x1080_8BPP:
 	case IMX900_MODE_SUB10_2064x154_8BPP:
 		imx900->hmax = 0x19C;
+		break;
+	case IMX900_MODE_2064x1552_8BPP:
+	case IMX900_MODE_ROI_1920x1080_8BPP:
+		imx900->hmax = 0x152;	/* 338: Sony minimum at 1485 Mbps */
 		break;
 	case IMX900_MODE_SUB2_1032x776_8BPP:
 	case IMX900_MODE_BIN_CROP_1024x720_8BPP:
@@ -1092,6 +1094,8 @@ static void imx900_adjust_link_frequency(struct imx900 *imx900)
 	case IMX900_MODE_BIN_CROP_1024x720_12BPP:
 	case IMX900_MODE_2064x1552_10BPP:
 	case IMX900_MODE_ROI_1920x1080_10BPP:
+	case IMX900_MODE_2064x1552_8BPP:
+	case IMX900_MODE_ROI_1920x1080_8BPP:
 		imx900->linkfreq = _IMX900_LINK_FREQ_1485;
 		break;
 	case IMX900_MODE_BIN_CROP_1024x720_10BPP:
@@ -1104,8 +1108,6 @@ static void imx900_adjust_link_frequency(struct imx900 *imx900)
 			imx900->linkfreq = _IMX900_LINK_FREQ_1188;
 		break;
 	case IMX900_MODE_SUB10_2064x154_10BPP:
-	case IMX900_MODE_2064x1552_8BPP:
-	case IMX900_MODE_ROI_1920x1080_8BPP:
 	case IMX900_MODE_SUB10_2064x154_8BPP:
 	case IMX900_MODE_BIN_CROP_1024x720_8BPP:
 		imx900->linkfreq = _IMX900_LINK_FREQ_891;
@@ -1209,7 +1211,8 @@ static void imx900_adjust_min_frame_length_delta(struct imx900 *imx900)
 		break;
 	case IMX900_MODE_2064x1552_8BPP:
 	case IMX900_MODE_ROI_1920x1080_8BPP:
-		imx900->min_frame_length_delta = 175;
+		/* Sony's 125.1 fps at HMAX 338 implies VMAX 1756 = 1536 + 220. */
+		imx900->min_frame_length_delta = 220;
 		break;
 	case IMX900_MODE_SUB2_1032x776_8BPP:
 	case IMX900_MODE_BIN_CROP_1024x720_8BPP:
@@ -1323,17 +1326,20 @@ static int imx900_set_dep_registers(struct imx900 *imx900)
 			ret = imx900_write_table(imx900, sub2_binning_mono_1188MBPS_1x10_4lane,
 				ARRAY_SIZE(sub2_binning_mono_1188MBPS_1x10_4lane));
 		break;
-	case IMX900_MODE_2064x1552_8BPP:
-	case IMX900_MODE_ROI_1920x1080_8BPP:
 	case IMX900_MODE_SUB10_2064x154_8BPP:
 		ret = imx900_write_table(imx900, allpix_roi_sub10_891MBPS_1x8_4lane,
 			ARRAY_SIZE(allpix_roi_sub10_891MBPS_1x8_4lane));
 		break;
+	case IMX900_MODE_2064x1552_8BPP:
+	case IMX900_MODE_ROI_1920x1080_8BPP:
+		ret = imx900_write_table(imx900, allpix_roi_sub2color_1485MBPS_1x8_4lane,
+			ARRAY_SIZE(allpix_roi_sub2color_1485MBPS_1x8_4lane));
+		break;
 	case IMX900_MODE_SUB2_1032x776_8BPP:
 	case IMX900_MODE_BIN_CROP_1024x720_8BPP:
 		if (imx900->chromacity == IMX900_COLOR)
-			ret = imx900_write_table(imx900, sub2_color_1485MBPS_1x8_4lane,
-				ARRAY_SIZE(sub2_color_1485MBPS_1x8_4lane));
+			ret = imx900_write_table(imx900, allpix_roi_sub2color_1485MBPS_1x8_4lane,
+				ARRAY_SIZE(allpix_roi_sub2color_1485MBPS_1x8_4lane));
 		else
 			ret = imx900_write_table(imx900, sub2_binning_mono_891MBPS_1x8_4lane,
 				ARRAY_SIZE(sub2_binning_mono_891MBPS_1x8_4lane));

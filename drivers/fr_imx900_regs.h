@@ -868,7 +868,7 @@ static const struct imx900_reg allpix_roi_sub2color_1485MBPS_1x10_4lane[] = {
 
 };
 
-static const struct imx900_reg sub2_color_1485MBPS_1x8_4lane[] = {
+static const struct imx900_reg allpix_roi_sub2color_1485MBPS_1x8_4lane[] = {
 
 	{GMRWT,		0x1E},
 	{GMTWT,		0x45},
