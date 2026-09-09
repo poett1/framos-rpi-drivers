@@ -831,12 +831,13 @@ static void imx900_adjust_min_shs_length(struct imx900 *imx900)
 		else
 			imx900->min_shs_length = 102;
 		break;
-	case IMX900_MODE_2064x1552_10BPP:
 	case IMX900_MODE_SUB10_2064x154_10BPP:
 		imx900->min_shs_length = 62;
 		break;
+	case IMX900_MODE_2064x1552_10BPP:
 	case IMX900_MODE_ROI_1920x1080_10BPP:
-		imx900->min_shs_length = 82;
+		/* 1485 Mbps: frames break below SHS 78; FRAMOS's 1485/10-bit value */
+		imx900->min_shs_length = 85;
 		break;
 	case IMX900_MODE_SUB2_1032x776_10BPP:
 	case IMX900_MODE_BIN_CROP_1024x720_10BPP:
@@ -845,10 +846,13 @@ static void imx900_adjust_min_shs_length(struct imx900 *imx900)
 		else
 			imx900->min_shs_length = 142;
 		break;
-	case IMX900_MODE_2064x1552_8BPP:
-	case IMX900_MODE_ROI_1920x1080_8BPP:
 	case IMX900_MODE_SUB10_2064x154_8BPP:
 		imx900->min_shs_length = 75;
+		break;
+	case IMX900_MODE_2064x1552_8BPP:
+	case IMX900_MODE_ROI_1920x1080_8BPP:
+		/* 1485 Mbps: frames break below SHS 88; FRAMOS's 1485/8-bit value */
+		imx900->min_shs_length = 92;
 		break;
 	case IMX900_MODE_SUB2_1032x776_8BPP:
 	case IMX900_MODE_BIN_CROP_1024x720_8BPP:
