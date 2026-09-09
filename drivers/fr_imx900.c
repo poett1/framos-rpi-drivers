@@ -961,12 +961,12 @@ static void imx900_adjust_hmax_register(struct imx900 *imx900)
 		else
 			imx900->hmax = 0x131;
 		break;
-	case IMX900_MODE_2064x1552_10BPP:
 	case IMX900_MODE_SUB10_2064x154_10BPP:
 		imx900->hmax = 0x1F3;
 		break;
+	case IMX900_MODE_2064x1552_10BPP:
 	case IMX900_MODE_ROI_1920x1080_10BPP:
-		imx900->hmax = 0x17A;
+		imx900->hmax = 0x17A;	/* 378: Sony minimum at 1485 Mbps */
 		break;
 	case IMX900_MODE_SUB2_1032x776_10BPP:
 	case IMX900_MODE_BIN_CROP_1024x720_10BPP:
@@ -1090,9 +1090,10 @@ static void imx900_adjust_link_frequency(struct imx900 *imx900)
 	case IMX900_MODE_SUB2_1032x776_12BPP:
 	case IMX900_MODE_SUB10_2064x154_12BPP:
 	case IMX900_MODE_BIN_CROP_1024x720_12BPP:
+	case IMX900_MODE_2064x1552_10BPP:
+	case IMX900_MODE_ROI_1920x1080_10BPP:
 		imx900->linkfreq = _IMX900_LINK_FREQ_1485;
 		break;
-	case IMX900_MODE_ROI_1920x1080_10BPP:
 	case IMX900_MODE_BIN_CROP_1024x720_10BPP:
 		imx900->linkfreq = _IMX900_LINK_FREQ_1188;
 		break;
@@ -1102,7 +1103,6 @@ static void imx900_adjust_link_frequency(struct imx900 *imx900)
 		else
 			imx900->linkfreq = _IMX900_LINK_FREQ_1188;
 		break;
-	case IMX900_MODE_2064x1552_10BPP:
 	case IMX900_MODE_SUB10_2064x154_10BPP:
 	case IMX900_MODE_2064x1552_8BPP:
 	case IMX900_MODE_ROI_1920x1080_8BPP:
@@ -1305,20 +1305,20 @@ static int imx900_set_dep_registers(struct imx900 *imx900)
 			ret = imx900_write_table(imx900, sub2_binning_mono_1485MBPS_1x12_4lane,
 				ARRAY_SIZE(sub2_binning_mono_1485MBPS_1x12_4lane));
 		break;
-	case IMX900_MODE_2064x1552_10BPP:
 	case IMX900_MODE_SUB10_2064x154_10BPP:
 		ret = imx900_write_table(imx900, allpix_roi_sub10_891MBPS_1x10_4lane,
 			ARRAY_SIZE(allpix_roi_sub10_891MBPS_1x10_4lane));
 		break;
+	case IMX900_MODE_2064x1552_10BPP:
 	case IMX900_MODE_ROI_1920x1080_10BPP:
-		ret = imx900_write_table(imx900, allpix_roi_sub10_1188MBPS_1x10_4lane,
-			ARRAY_SIZE(allpix_roi_sub10_1188MBPS_1x10_4lane));
+		ret = imx900_write_table(imx900, allpix_roi_sub2color_1485MBPS_1x10_4lane,
+			ARRAY_SIZE(allpix_roi_sub2color_1485MBPS_1x10_4lane));
 		break;
 	case IMX900_MODE_SUB2_1032x776_10BPP:
 	case IMX900_MODE_BIN_CROP_1024x720_10BPP:
 		if (imx900->chromacity == IMX900_COLOR)
-			ret = imx900_write_table(imx900, sub2_color_1485MBPS_1x10_4lane,
-				ARRAY_SIZE(sub2_color_1485MBPS_1x10_4lane));
+			ret = imx900_write_table(imx900, allpix_roi_sub2color_1485MBPS_1x10_4lane,
+				ARRAY_SIZE(allpix_roi_sub2color_1485MBPS_1x10_4lane));
 		else
 			ret = imx900_write_table(imx900, sub2_binning_mono_1188MBPS_1x10_4lane,
 				ARRAY_SIZE(sub2_binning_mono_1188MBPS_1x10_4lane));
@@ -1584,8 +1584,13 @@ static int imx900_set_shutter_mode(struct imx900 *imx900)
 }
 
 /*
- * frame_rate's maximum is the rate at minimum VBLANK and the live line
- * time. It moves whenever HBLANK moves.
+ * frame_rate's range is computed once per mode, at the minimum HMAX and
+ * minimum VBLANK. It is deliberately NOT refreshed when HBLANK moves:
+ * __v4l2_ctrl_modify_range() clamps the control's current value and, if
+ * that changes it, invokes the frame_rate handler, which would then reset
+ * VBLANK behind libcamera's back (libcamera writes HBLANK and VBLANK
+ * together every frame). A frame_rate request above what the live HMAX
+ * allows simply clamps to the minimum VBLANK in imx900_update_frame_rate().
  */
 static void imx900_update_framerate_range(struct imx900 *imx900)
 {
@@ -1642,7 +1647,6 @@ static int imx900_set_ctrl(struct v4l2_ctrl *ctrl)
 		imx900->hmax = (imx900->mode->width + ctrl->val) / ratio;
 		imx900->line_time = ((u64)imx900->hmax * IMX900_G_FACTOR) /
 							IMX900_XCLK_FREQ;
-		imx900_update_framerate_range(imx900);
 		break;
 	}
 	case V4L2_CID_VBLANK:

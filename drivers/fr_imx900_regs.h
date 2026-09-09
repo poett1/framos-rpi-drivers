@@ -816,19 +816,6 @@ static const struct imx900_reg allpix_roi_sub10_1485MBPS_1x12_4lane[] = {
 
 };
 
-static const struct imx900_reg allpix_roi_sub10_1188MBPS_1x10_4lane[] = {
-
-	{GMRWT,		0x1B},
-	{GMTWT,		0x3E},
-	{GAINDLY,	0x02},
-	{GSDLY,		0x01},
-	{IMX900_36A8,	0x1B},
-	{IMX900_36A9,	0x2F},
-	{GMRWT2,	0x14},
-	{GMRWT3,	0x26},
-
-};
-
 static const struct imx900_reg allpix_roi_sub10_891MBPS_1x10_4lane[] = {
 
 	{GMRWT,		0x15},
@@ -868,7 +855,7 @@ static const struct imx900_reg sub2_color_1485MBPS_1x12_4lane[] = {
 
 };
 
-static const struct imx900_reg sub2_color_1485MBPS_1x10_4lane[] = {
+static const struct imx900_reg allpix_roi_sub2color_1485MBPS_1x10_4lane[] = {
 
 	{GMRWT,		0x1C},
 	{GMTWT,		0x40},
