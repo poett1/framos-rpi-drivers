@@ -33,6 +33,8 @@
 
 /* VMAX is a 24-bit register; this ceiling allows multi-second frames. */
 #define IMX900_VMAX_MAX				0xFFFFF
+/* HMAX is a 16-bit register; 0x0FFF is a 55 us line, beyond any request. */
+#define IMX900_HMAX_MAX				0x0FFF
 
 #define GMSL_LINK_FREQ_1500			(1500000000/2)
 #define IMX900_LINK_FREQ_1485			(1485000000/2)
@@ -486,6 +488,7 @@ struct imx900 {
 	u32 min_frame_length_delta;
 	u32 min_shs_length;
 	u32 hmax;
+	u32 hmax_min;
 	u32 pixel_rate_calc;
 
 	const char *gmsl;
@@ -918,6 +921,29 @@ static void imx900_adjust_gain_range(struct imx900 *imx900, u8 val)
 
 }
 
+/*
+ * Modes whose HBLANK is exposed report PIXEL_RATE as an integer multiple of
+ * INCK so that HBLANK maps to HMAX without rounding:
+ *   pixel_rate = ratio * IMX900_XCLK_FREQ
+ *   hblank     = hmax * ratio - width
+ * The ratio equals the CSI-2 pixel rate on 4 lanes at 1485 Mbps/lane:
+ * 742.5 MHz at 8 bit (ratio 10), 594 MHz at 10 bit (ratio 8). Modes that
+ * return 0 keep the legacy fixed-HBLANK reporting.
+ */
+static u32 imx900_pixel_rate_ratio(const struct imx900_mode *mode)
+{
+	switch (mode->type) {
+	case IMX900_MODE_2064x1552_8BPP:
+	case IMX900_MODE_ROI_1920x1080_8BPP:
+		return 10;
+	case IMX900_MODE_2064x1552_10BPP:
+	case IMX900_MODE_ROI_1920x1080_10BPP:
+		return 8;
+	default:
+		return 0;
+	}
+}
+
 static void imx900_adjust_hmax_register(struct imx900 *imx900)
 {
 	const struct imx900_mode *mode = imx900->mode;
@@ -962,6 +988,8 @@ static void imx900_adjust_hmax_register(struct imx900 *imx900)
 			imx900->hmax = 0xF0;
 		break;
 	}
+
+	imx900->hmax_min = imx900->hmax;
 }
 
 static void imx900_adjust_pixel_rate(struct imx900 *imx900)
@@ -1020,6 +1048,10 @@ static void imx900_adjust_pixel_rate(struct imx900 *imx900)
 		imx900->pixel_rate_calc = 316800000;
 		break;
 	}
+
+	if (imx900_pixel_rate_ratio(mode))
+		imx900->pixel_rate_calc =
+			imx900_pixel_rate_ratio(mode) * IMX900_XCLK_FREQ;
 
 	__v4l2_ctrl_modify_range(imx900->pixel_rate,
 				 imx900->pixel_rate_calc,
@@ -1551,6 +1583,46 @@ static int imx900_set_shutter_mode(struct imx900 *imx900)
 	return 0;
 }
 
+/*
+ * frame_rate's maximum is the rate at minimum VBLANK and the live line
+ * time. It moves whenever HBLANK moves.
+ */
+static void imx900_update_framerate_range(struct imx900 *imx900)
+{
+	const struct imx900_mode *mode = imx900->mode;
+	u64 min_frame_length = mode->height + imx900->min_frame_length_delta;
+	u64 max_framerate;
+
+	if (!imx900->line_time)
+		return;
+
+	max_framerate = (IMX900_G_FACTOR * IMX900_M_FACTOR) /
+				(min_frame_length * imx900->line_time);
+
+	__v4l2_ctrl_modify_range(imx900->framerate, mode->min_fps,
+				 max_framerate, 1, max_framerate);
+}
+
+static void imx900_adjust_hblank_range(struct imx900 *imx900)
+{
+	const struct imx900_mode *mode = imx900->mode;
+	u32 ratio = imx900_pixel_rate_ratio(mode);
+	s64 hb_min, hb_max;
+
+	if (!ratio) {
+		imx900->hblank->flags |= V4L2_CTRL_FLAG_READ_ONLY;
+		__v4l2_ctrl_modify_range(imx900->hblank, 0, 0, 1, 0);
+		return;
+	}
+
+	hb_min = (s64)imx900->hmax_min * ratio - mode->width;
+	hb_max = (s64)IMX900_HMAX_MAX * ratio - mode->width;
+
+	imx900->hblank->flags &= ~V4L2_CTRL_FLAG_READ_ONLY;
+	__v4l2_ctrl_modify_range(imx900->hblank, hb_min, hb_max, ratio, hb_min);
+	__v4l2_ctrl_s_ctrl(imx900->hblank, hb_min);
+}
+
 static int imx900_set_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct imx900 *imx900 =
@@ -1562,6 +1634,17 @@ static int imx900_set_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_FRAME_RATE:
 		imx900_update_frame_rate(imx900, ctrl->val);
 		break;
+	case V4L2_CID_HBLANK: {
+		u32 ratio = imx900_pixel_rate_ratio(imx900->mode);
+
+		if (!ratio)
+			break;
+		imx900->hmax = (imx900->mode->width + ctrl->val) / ratio;
+		imx900->line_time = ((u64)imx900->hmax * IMX900_G_FACTOR) /
+							IMX900_XCLK_FREQ;
+		imx900_update_framerate_range(imx900);
+		break;
+	}
 	case V4L2_CID_VBLANK:
 		imx900->frame_length = imx900->mode->height + ctrl->val;
 		imx900_adjust_exposure_range(imx900);
@@ -1586,6 +1669,10 @@ static int imx900_set_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	case V4L2_CID_TEST_PATTERN:
 		imx900_set_test_pattern(imx900, ctrl->val);
+		break;
+	case V4L2_CID_HBLANK:
+		if (imx900_pixel_rate_ratio(imx900->mode))
+			ret = imx900_set_hmax_register(imx900);
 		break;
 	case V4L2_CID_VBLANK:
 		ret = imx900_write_hold_reg(imx900, VMAX_LOW, 3,
@@ -1746,34 +1833,28 @@ static void imx900_set_limits(struct imx900 *imx900)
 	struct i2c_client *client = v4l2_get_subdevdata(&imx900->sd);
 	struct device *dev = &client->dev;
 	const struct imx900_mode *mode = imx900->mode;
-	u64 max_framerate;
 
 	dev_dbg(dev, "%s: mode: %dx%d\n", __func__, mode->width, mode->height);
 
 	imx900_adjust_hmax_register(imx900);
-
 	imx900_adjust_min_frame_length_delta(imx900);
-
 	imx900_adjust_pixel_rate(imx900);
-
 	imx900_adjust_link_frequency(imx900);
 
-	imx900->line_time = (imx900->hmax*IMX900_G_FACTOR) / (IMX900_XCLK_FREQ);
-	dev_dbg(dev, "%s: line time: %lld\n", __func__, imx900->line_time);
-
+	imx900->line_time = ((u64)imx900->hmax * IMX900_G_FACTOR) /
+							IMX900_XCLK_FREQ;
 	imx900->frame_length = mode->height + imx900->min_frame_length_delta;
-	dev_dbg(dev, "%s: frame length: %d\n", __func__, imx900->frame_length);
 
-	max_framerate = (IMX900_G_FACTOR * IMX900_M_FACTOR) /
-				(imx900->frame_length * imx900->line_time);
+	/* May re-enter set_ctrl(HBLANK), which recomputes line_time. */
+	imx900_adjust_hblank_range(imx900);
 
-	__v4l2_ctrl_modify_range(imx900->framerate, mode->min_fps,
-				 max_framerate, 1, max_framerate);
-	dev_dbg(dev, "%s: max framerate: %lld\n", __func__, max_framerate);
-
+	imx900_update_framerate_range(imx900);
 	imx900_update_blklvl_range(imx900);
 
-	__v4l2_ctrl_s_ctrl(imx900->framerate, max_framerate);
+	dev_dbg(dev, "%s: line time: %lld, max framerate: %lld\n", __func__,
+		imx900->line_time, imx900->framerate->maximum);
+
+	__v4l2_ctrl_s_ctrl(imx900->framerate, imx900->framerate->maximum);
 }
 
 static int imx900_set_pad_format(struct v4l2_subdev *sd,
