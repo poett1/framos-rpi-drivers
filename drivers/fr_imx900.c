@@ -31,6 +31,9 @@
 
 #define IMX900_XCLK_FREQ			74250000
 
+/* VMAX is a 24-bit register; this ceiling allows multi-second frames. */
+#define IMX900_VMAX_MAX				0xFFFFF
+
 #define GMSL_LINK_FREQ_1500			(1500000000/2)
 #define IMX900_LINK_FREQ_1485			(1485000000/2)
 #define	IMX900_LINK_FREQ_1188			(1188000000/2)
@@ -870,39 +873,27 @@ static void imx900_adjust_exposure_range(struct imx900 *imx900)
 				exposure_max);
 }
 
-static int imx900_set_frame_rate(struct imx900 *imx900, u64 val)
-{
-	struct i2c_client *client = v4l2_get_subdevdata(&imx900->sd);
-	struct device *dev = &client->dev;
-	int ret;
-
-	ret = imx900_write_hold_reg(imx900, VMAX_LOW, 3, imx900->frame_length);
-
-	if (ret) {
-		dev_err(dev, "%s failed to set frame rate\n", __func__);
-		return ret;
-	}
-
-	return ret;
-
-}
-
+/*
+ * The FRAMOS frame_rate control (mHz) is kept for v4l2-ctl users. It is a
+ * layer over VBLANK: the requested rate is converted into a frame length at
+ * the current line time and applied through the VBLANK control, which owns
+ * the VMAX register write.
+ */
 static void imx900_update_frame_rate(struct imx900 *imx900, u64 val)
 {
-
 	const struct imx900_mode *mode = imx900->mode;
-	u32 update_vblank;
+	u64 frame_length;
+	s64 vblank;
 
-	imx900->frame_length = (IMX900_M_FACTOR * IMX900_G_FACTOR) /
+	if (!val || !imx900->line_time)
+		return;
+
+	frame_length = (IMX900_M_FACTOR * IMX900_G_FACTOR) /
 						(val * imx900->line_time);
+	vblank = clamp_t(s64, (s64)frame_length - mode->height,
+			 imx900->vblank->minimum, imx900->vblank->maximum);
 
-	update_vblank = imx900->frame_length - mode->height;
-
-	__v4l2_ctrl_modify_range(imx900->vblank, update_vblank,
-				 update_vblank, 1, update_vblank);
-
-	__v4l2_ctrl_s_ctrl(imx900->vblank, update_vblank);
-
+	__v4l2_ctrl_s_ctrl(imx900->vblank, vblank);
 }
 
 static void imx900_adjust_gain_range(struct imx900 *imx900, u8 val)
@@ -1205,7 +1196,7 @@ static void imx900_adjust_min_frame_length_delta(struct imx900 *imx900)
 
 	__v4l2_ctrl_modify_range(imx900->vblank,
 				 imx900->min_frame_length_delta,
-				 imx900->min_frame_length_delta,
+				 IMX900_VMAX_MAX - mode->height,
 				 1, imx900->min_frame_length_delta);
 
 	dev_dbg(dev, "%s: vblank: %d\n", __func__, imx900->min_frame_length_delta);
@@ -1572,6 +1563,7 @@ static int imx900_set_ctrl(struct v4l2_ctrl *ctrl)
 		imx900_update_frame_rate(imx900, ctrl->val);
 		break;
 	case V4L2_CID_VBLANK:
+		imx900->frame_length = imx900->mode->height + ctrl->val;
 		imx900_adjust_exposure_range(imx900);
 		break;
 	case V4L2_CID_CONVERSION_GAIN:
@@ -1595,8 +1587,9 @@ static int imx900_set_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_TEST_PATTERN:
 		imx900_set_test_pattern(imx900, ctrl->val);
 		break;
-	case V4L2_CID_FRAME_RATE:
-		ret = imx900_set_frame_rate(imx900, ctrl->val);
+	case V4L2_CID_VBLANK:
+		ret = imx900_write_hold_reg(imx900, VMAX_LOW, 3,
+					    imx900->frame_length);
 		break;
 	case V4L2_CID_BLACK_LEVEL:
 		ret = imx900_set_blklvl(imx900, ctrl->val);
