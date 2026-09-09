@@ -1,0 +1,12 @@
+# kernel out-of-tree build output
+*.o
+*.ko
+*.mod
+*.mod.c
+*.o.d
+.*.cmd
+.module-common.o
+Module.symvers
+modules.order
+overlays/*.dtbo
+overlays/preprocessed/
