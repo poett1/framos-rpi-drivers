@@ -1279,7 +1279,12 @@ static void imx900_adjust_min_frame_length_delta(struct imx900 *imx900)
 		break;
 	case IMX900_MODE_2064x1552_10BPP:
 	case IMX900_MODE_ROI_2048x1536_10BPP:
-		imx900->min_frame_length_delta = 155;
+		/*
+		 * Measured 2026-09-10 at the padded 5.39 us line: 175 truncates
+		 * the frame (bottom rows zero, half the signal), 190 is clean.
+		 * 155 was the 891 Mbps value. Ship the last clean value + 15.
+		 */
+		imx900->min_frame_length_delta = 205;
 		break;
 	case IMX900_MODE_ROI_1920x1080_10BPP:
 		imx900->min_frame_length_delta = 186;
@@ -1297,7 +1302,11 @@ static void imx900_adjust_min_frame_length_delta(struct imx900 *imx900)
 	case IMX900_MODE_2064x1552_8BPP:
 	case IMX900_MODE_ROI_1920x1080_8BPP:
 	case IMX900_MODE_ROI_2048x1536_8BPP:
-		/* Sony's 125.1 fps at HMAX 338 implies VMAX 1756 = 1536 + 220. */
+		/*
+		 * Sony's 125.1 fps at HMAX 338 implies VMAX 1756 = 1536 + 220.
+		 * Measured 2026-09-10 at the padded 5.39 us line: 190 truncates
+		 * the frame, 205 is clean, so 220 is the last clean value + 15.
+		 */
 		imx900->min_frame_length_delta = 220;
 		break;
 	case IMX900_MODE_SUB2_1032x776_8BPP:
