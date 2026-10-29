@@ -496,15 +496,18 @@ static const struct imx900_mode modes_8bit[] = {
 	},
 };
 
+/*
+ * RGGB only. The subsampling modes come out GBRG, but libcamera takes one
+ * CFA order per sensor from the lowest enumerated code, so advertising GBRG
+ * at all makes it configure every RGGB mode as GBRG and rp1-cfe refuses to
+ * stream. The subsampling modes stay reachable on mono sensors.
+ */
 static const u32 codes[] = {
 
-	MEDIA_BUS_FMT_SGBRG12_1X12,
 	MEDIA_BUS_FMT_SRGGB12_1X12,
 
-	MEDIA_BUS_FMT_SGBRG10_1X10,
 	MEDIA_BUS_FMT_SRGGB10_1X10,
 
-	MEDIA_BUS_FMT_SGBRG8_1X8,
 	MEDIA_BUS_FMT_SRGGB8_1X8,
 
 };
