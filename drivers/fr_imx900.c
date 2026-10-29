@@ -576,8 +576,8 @@ static inline void get_mode_table(struct imx900 *imx900,
 {
 	switch (code) {
 	case MEDIA_BUS_FMT_SGBRG12_1X12:
-		*mode_list = &modes_12bit[2];
-		*num_modes = ARRAY_SIZE(modes_12bit) - 3;
+		*mode_list = &modes_12bit[3];
+		*num_modes = ARRAY_SIZE(modes_12bit) - 4;
 		break;
 	case MEDIA_BUS_FMT_SRGGB12_1X12:
 		*mode_list = modes_12bit;
@@ -588,8 +588,8 @@ static inline void get_mode_table(struct imx900 *imx900,
 		*num_modes = ARRAY_SIZE(modes_12bit);
 		break;
 	case MEDIA_BUS_FMT_SGBRG10_1X10:
-		*mode_list = &modes_10bit[2];
-		*num_modes = ARRAY_SIZE(modes_10bit) - 3;
+		*mode_list = &modes_10bit[3];
+		*num_modes = ARRAY_SIZE(modes_10bit) - 4;
 		break;
 	case MEDIA_BUS_FMT_SRGGB10_1X10:
 		*mode_list = modes_10bit;
@@ -600,8 +600,8 @@ static inline void get_mode_table(struct imx900 *imx900,
 		*num_modes = ARRAY_SIZE(modes_10bit);
 		break;
 	case MEDIA_BUS_FMT_SGBRG8_1X8:
-		*mode_list = &modes_8bit[2];
-		*num_modes = ARRAY_SIZE(modes_8bit) - 3;
+		*mode_list = &modes_8bit[3];
+		*num_modes = ARRAY_SIZE(modes_8bit) - 4;
 		break;
 	case MEDIA_BUS_FMT_SRGGB8_1X8:
 		*mode_list = modes_8bit;
