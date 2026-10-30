@@ -2597,11 +2597,13 @@ static int imx900_init_controls(struct imx900 *imx900)
 	imx900->hflip = v4l2_ctrl_new_std(ctrl_hdlr, &imx900_ctrl_ops,
 					  V4L2_CID_HFLIP, 0, 1, 1, 0);
 
+	/*
+	 * No MODIFY_LAYOUT on either flip: the sensor is mono, so there is no
+	 * Bayer order to change. libcamera (since f9957619) disables both flips
+	 * and logs an error when only one of them carries the flag.
+	 */
 	imx900->vflip = v4l2_ctrl_new_std(ctrl_hdlr, &imx900_ctrl_ops,
 					  V4L2_CID_VFLIP, 0, 1, 1, 0);
-
-	if (imx900->vflip)
-		imx900->vflip->flags |= V4L2_CTRL_FLAG_MODIFY_LAYOUT;
 
 	imx900->conversion_gain = v4l2_ctrl_new_custom(ctrl_hdlr,
 					imx900_ctrl_conversion_gain, NULL);
